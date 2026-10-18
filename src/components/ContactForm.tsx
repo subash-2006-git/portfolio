@@ -1,48 +1,48 @@
 "use client";
-import { useState } from "react";
-import { site } from "@/data/site";
-
-// Set NEXT_PUBLIC_FORMSPREE_ID to send via Formspree; otherwise falls back to mailto.
-const formspree = process.env.NEXT_PUBLIC_FORMSPREE_ID;
+import { useActionState } from "react";
+import { sendMessage, type ContactState } from "@/app/(site)/actions";
 
 export default function ContactForm() {
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [state, action, pending] = useActionState<ContactState, FormData>(sendMessage, { status: "idle" });
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const data = new FormData(form);
-    if (!formspree) {
-      const body = encodeURIComponent(`${data.get("message")}\n\n- ${data.get("name")}`);
-      window.location.href = `mailto:${site.email}?subject=Portfolio%20message&body=${body}`;
-      return;
-    }
-    setStatus("sending");
-    try {
-      const res = await fetch(`https://formspree.io/f/${formspree}`, {
-        method: "POST",
-        body: data,
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error();
-      setStatus("sent");
-      form.reset();
-    } catch {
-      setStatus("error");
-    }
+  if (state.status === "sent") {
+    return (
+      <div role="status" className="py-6 text-center">
+        <p className="text-lg font-semibold">Message sent</p>
+        <p className="mt-2 text-dim">Thanks for reaching out. I&apos;ll get back to you soon.</p>
+      </div>
+    );
   }
 
-  const field = "w-full rounded border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-accent";
+  const field = "w-full rounded-lg border border-line bg-bg px-3.5 py-2.5 text-sm outline-none transition-colors placeholder:text-dim/60 focus:border-accent focus:ring-4 focus:ring-accent/15";
+  const label = "mb-1.5 block text-sm font-medium";
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
-      <input name="name" required placeholder="name" aria-label="Name" className={field} />
-      <input name="email" type="email" required placeholder="email" aria-label="Email" className={field} />
-      <textarea name="message" required rows={5} placeholder="message" aria-label="Message" className={field} />
-      <button disabled={status === "sending"} className="rounded border border-accent px-4 py-2 text-sm text-accent hover:bg-accent hover:text-bg disabled:opacity-50">
-        {status === "sending" ? "sending..." : "./send.sh"}
-      </button>
-      {status === "sent" && <p className="text-sm text-accent">Message sent. Thanks!</p>}
-      {status === "error" && <p className="text-sm text-red-400">Something went wrong. Try emailing directly.</p>}
+    <form action={action} className="space-y-5">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <label htmlFor="cf-name" className={label}>Name</label>
+          <input id="cf-name" name="name" required maxLength={200} autoComplete="name" className={field} />
+        </div>
+        <div>
+          <label htmlFor="cf-email" className={label}>Email</label>
+          <input id="cf-email" name="email" type="email" required autoComplete="email" placeholder="you@example.com" className={field} />
+        </div>
+      </div>
+      <div>
+        <label htmlFor="cf-message" className={label}>Message</label>
+        <textarea id="cf-message" name="message" required maxLength={5000} rows={5} className={field} />
+      </div>
+      {/* Spam trap: hidden from people and screen readers */}
+      <div aria-hidden className="absolute -left-[9999px]">
+        <label htmlFor="cf-company">Company</label>
+        <input id="cf-company" name="company" tabIndex={-1} autoComplete="off" />
+      </div>
+      <div className="flex flex-wrap items-center gap-4">
+        <button disabled={pending} className="rounded-lg bg-accent px-5 py-3 text-sm font-medium text-accent-fg shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50">
+          {pending ? "Sending…" : "Send message"}
+        </button>
+        <p role="status" className="text-sm text-danger">{state.status === "error" && state.error}</p>
+      </div>
     </form>
   );
 }
